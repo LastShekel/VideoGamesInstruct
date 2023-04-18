@@ -1,3 +1,5 @@
+from abc import ABC
+
 import requests
 from bs4 import BeautifulSoup as BS
 from bs4.element import Tag, NavigableString
@@ -6,15 +8,14 @@ import time
 from typing import Union
 
 
-class Review_collector:
+class ReviewCollector(ABC):
 
     def __init__(self, headers=None, host=None):
         self.games = None
         if not headers:
             self.headers = {
                 'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.99 Safari/537.36'
-            }
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.99 Safari/537.36'}
 
         if not host:
             self.host = 'https://stopgame.ru'
@@ -37,17 +38,17 @@ class Review_collector:
 
     def filter_text(self, text: Union[Tag, NavigableString, str]):
         result = ''
-        if type(text) == NavigableString or type(text) == str:
+        if isinstance(text, NavigableString) or isinstance(text, str):
             return text
         if text.attrs.get('class', None):
             if sum(map(lambda c: True if re.match(".*gallery.*", c) else False,
-                       text.attrs['class'])):  ## skip pictures
+                       text.attrs['class'])):  # skip pictures
                 return result
-        if type(text) == Tag and text.name == 'abbr':
+        if isinstance(text, Tag) and text.name == 'abbr':
             return text.attrs['title']
         for part in text:
             addition = ''
-            if type(part) == NavigableString:
+            if isinstance(part, NavigableString):
                 addition = self.filter_text(part)
             if part.name == 'p':
                 addition = self.filter_text(part.contents[0])
@@ -75,14 +76,14 @@ class Review_collector:
             if part.name == 'abbr':
                 if '█' in self.filter_text(part.contents[0]):
                     addition = part.attrs['title']
-                elif type(part.contents[0]) == Tag:
+                elif isinstance(part.contents[0], Tag):
                     addition = self.filter_text(part.contents[0])
                 else:
                     addition = part.contents[0]
             if part.name == 'a':
                 addition = self.filter_text(part.contents[-1])
             if part.name == 'lite-youtube':
-                addition = '\n'+str(part.contents[1]['href'])+'\n'
+                addition = '\n' + str(part.contents[1]['href']) + '\n'
             if part.name == 'div':
                 if hasattr(part, 'attrs') and 'class' in part.attrs:
                     if 'caption' in part.attrs['class'][0]:
@@ -100,9 +101,9 @@ class Review_collector:
                             addition += ':'
                         else:
                             review_rating = list(
-                            filter(lambda x: 'active' in
-                                             ' '.join(x['class']),
-                                   part.contents))[0]
+                                filter(lambda x: 'active' in
+                                                 ' '.join(x['class']),
+                                       part.contents))[0]
                             rus_rating = review_rating.contents[0]['href'][9:]
                             if rus_rating == 'musor':
                                 rating = 'мусор'
@@ -117,17 +118,17 @@ class Review_collector:
                     result = self.add_text(result, self.filter_text(part))
             result = self.add_text(result, addition)
 
-        return result+'\n'
+        return result + '\n'
 
     def link_to_review(self, link: str):
         soup = BS(self._get_html(self.host + link).text, 'html.parser')
         content = soup.find('div', class_=re.compile(".*_content_.*"))
         review = ''
         for text in content.contents:
-            if type(text) == NavigableString:
+            if isinstance(text, NavigableString):
                 review += '\n'
                 continue
-            if type(text) != Tag:
+            if not isinstance(text, Tag):
                 continue
             review += self.filter_text(text)
         review = review.replace(' ', ' ')
@@ -145,13 +146,13 @@ class Review_collector:
                 time.sleep(60)
         return req
 
-    def get_review_page_content(self, html: str):
+    async def get_review_page_content(self, html: str):
         soup = BS(html, 'html.parser')
-        grid = soup.find('div', class_=re.compile(
-            ".*default-grid.*"))  # "_default-grid_b9a3a_208" find all reviews on page
+        # "_default-grid_b9a3a_208" find all reviews on page
+        grid = soup.find('div', class_=re.compile(".*default-grid.*"))
         items = []
         for i in grid.descendants:
-            if type(i) != Tag:
+            if not isinstance(i, Tag):
                 continue
             items.append(i)
 
